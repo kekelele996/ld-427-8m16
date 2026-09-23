@@ -3,9 +3,11 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/renovation/renovation-budget-api/internal/constants"
 	"github.com/renovation/renovation-budget-api/internal/dto"
 	"github.com/renovation/renovation-budget-api/internal/middleware"
 	"github.com/renovation/renovation-budget-api/internal/response"
@@ -14,13 +16,14 @@ import (
 
 // BudgetHandler 预算表处理层。
 type BudgetHandler struct {
-	service *service.BudgetService
-	logger  *slog.Logger
+	service       *service.BudgetService
+	adjustService *service.BudgetAdjustmentService
+	logger        *slog.Logger
 }
 
 // NewBudgetHandler 构造预算表处理层。
-func NewBudgetHandler(service *service.BudgetService, logger *slog.Logger) *BudgetHandler {
-	return &BudgetHandler{service: service, logger: logger}
+func NewBudgetHandler(budgetService *service.BudgetService, adjustService *service.BudgetAdjustmentService, logger *slog.Logger) *BudgetHandler {
+	return &BudgetHandler{service: budgetService, adjustService: adjustService, logger: logger}
 }
 
 // Create 创建预算表。
@@ -95,6 +98,8 @@ func (h *BudgetHandler) Get(c *gin.Context) {
 }
 
 // Update 更新预算表。
+// 名称/状态直接生效；一旦请求携带 total_amount，则不允许直接改总额，
+// 而是转入预算调整单审批流程（reason 必填），返回待审调整单。
 // @Summary 更新预算表
 // @Tags budgets
 // @Accept json
@@ -115,6 +120,23 @@ func (h *BudgetHandler) Update(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
+	// 总额变更统一纳入调整单审批这道门。
+	if req.TotalAmount > 0 {
+		if req.Reason == "" {
+			response.Abort(c, http.StatusBadRequest, constants.CodeBadRequest, "reason is required when total_amount is provided")
+			return
+		}
+		adjustment, err := h.adjustService.Submit(context.Background(), actor, id, dto.CreateBudgetAdjustmentRequest{
+			TotalAmount: req.TotalAmount,
+			Reason:      req.Reason,
+		})
+		if err != nil {
+			handleError(c, err)
+			return
+		}
+		response.OK(c, adjustment)
+		return
+	}
 	sheet, err := h.service.Update(context.Background(), actor, id, req)
 	if err != nil {
 		handleError(c, err)
@@ -123,15 +145,17 @@ func (h *BudgetHandler) Update(c *gin.Context) {
 	response.OK(c, sheet)
 }
 
-// Adjust 调整预算总额。
-// @Summary 调整预算总额
+// Adjust 旧版预算总额调整入口，现统一转入调整单审批流程：提交一张待审调整单。
+// @Summary 提交预算调整单（旧入口）
 // @Tags budgets
 // @Accept json
 // @Produce json
 // @Param id path int true "预算表ID"
-// @Param request body dto.AdjustBudgetRequest true "调整请求"
+// @Param request body dto.CreateBudgetAdjustmentRequest true "调整请求"
 // @Success 200 {object} response.Body
 // @Failure 400 {object} response.Body
+// @Failure 403 {object} response.Body
+// @Failure 409 {object} response.Body
 // @Security BearerAuth
 // @Router /budgets/{id}/adjust [post]
 func (h *BudgetHandler) Adjust(c *gin.Context) {
@@ -140,16 +164,16 @@ func (h *BudgetHandler) Adjust(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var req dto.AdjustBudgetRequest
+	var req dto.CreateBudgetAdjustmentRequest
 	if !bindJSON(c, &req) {
 		return
 	}
-	sheet, err := h.service.Adjust(context.Background(), actor, id, req)
+	adjustment, err := h.adjustService.Submit(context.Background(), actor, id, req)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
-	response.OK(c, sheet)
+	response.OK(c, adjustment)
 }
 
 // Delete 删除预算表。

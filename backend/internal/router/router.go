@@ -18,17 +18,18 @@ import (
 
 // Dependencies 路由装配所需依赖。
 type Dependencies struct {
-	Config                *config.Config
-	Redis                 *redis.Client
-	Logger                *slog.Logger
-	AuditRepo             repository.AuditRepository
-	AuthHandler           *handler.AuthHandler
-	AuditHandler          *handler.AuditHandler
-	BudgetHandler         *handler.BudgetHandler
-	ItemHandler           *handler.ItemHandler
-	ExpenseHandler        *handler.ExpenseHandler
-	SupplierHandler       *handler.SupplierHandler
-	ReconciliationHandler *handler.ReconciliationHandler
+	Config                  *config.Config
+	Redis                   *redis.Client
+	Logger                  *slog.Logger
+	AuditRepo               repository.AuditRepository
+	AuthHandler             *handler.AuthHandler
+	AuditHandler            *handler.AuditHandler
+	BudgetHandler           *handler.BudgetHandler
+	BudgetAdjustmentHandler *handler.BudgetAdjustmentHandler
+	ItemHandler             *handler.ItemHandler
+	ExpenseHandler          *handler.ExpenseHandler
+	SupplierHandler         *handler.SupplierHandler
+	ReconciliationHandler   *handler.ReconciliationHandler
 }
 
 // New 装配中间件与路由。
@@ -58,11 +59,22 @@ func New(deps Dependencies) *gin.Engine {
 		budgets.GET("/:id", middleware.RBACMiddleware(middleware.PermissionView), deps.BudgetHandler.Get)
 		budgets.PUT("/:id", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.BudgetHandler.Update)
 		budgets.DELETE("/:id", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.BudgetHandler.Delete)
-		budgets.POST("/:id/adjust", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.BudgetHandler.Adjust)
+		// 预算总额调整统一走调整单审批：项目经理提交、财务经理审批。
+		budgets.POST("/:id/adjust", middleware.RBACMiddleware(middleware.PermissionBudgetAdjustSubmit), deps.BudgetHandler.Adjust)
+		budgets.POST("/:id/adjustments", middleware.RBACMiddleware(middleware.PermissionBudgetAdjustSubmit), deps.BudgetAdjustmentHandler.Submit)
+		budgets.GET("/:id/adjustments", middleware.RBACMiddleware(middleware.PermissionView), deps.BudgetAdjustmentHandler.ListByBudget)
 		budgets.GET("/:id/items", middleware.RBACMiddleware(middleware.PermissionView), deps.ItemHandler.List)
 		budgets.POST("/:id/items", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.ItemHandler.Create)
 		budgets.PUT("/:id/items/:item_id", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.ItemHandler.Update)
 		budgets.DELETE("/:id/items/:item_id", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.ItemHandler.Delete)
+	}
+
+	budgetAdjustments := authed.Group("/budget-adjustments")
+	{
+		budgetAdjustments.GET("", middleware.RBACMiddleware(middleware.PermissionView), deps.BudgetAdjustmentHandler.List)
+		budgetAdjustments.GET("/:id", middleware.RBACMiddleware(middleware.PermissionView), deps.BudgetAdjustmentHandler.Get)
+		budgetAdjustments.POST("/:id/approve", middleware.RBACMiddleware(middleware.PermissionBudgetAdjustApprove), deps.BudgetAdjustmentHandler.Approve)
+		budgetAdjustments.POST("/:id/reject", middleware.RBACMiddleware(middleware.PermissionBudgetAdjustApprove), deps.BudgetAdjustmentHandler.Reject)
 	}
 
 	expenses := authed.Group("/expenses")

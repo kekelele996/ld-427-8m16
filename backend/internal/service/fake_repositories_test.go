@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/renovation/renovation-budget-api/internal/constants"
 	"github.com/renovation/renovation-budget-api/internal/model"
 	"github.com/renovation/renovation-budget-api/internal/repository"
 )
@@ -255,6 +256,63 @@ func (f *fakeReconciliationRepo) Update(_ context.Context, record *model.Reconci
 
 func (f *fakeReconciliationRepo) Delete(_ context.Context, id uint) error {
 	delete(f.items, id)
+	return nil
+}
+
+type fakeBudgetAdjustmentRepo struct {
+	nextID      uint
+	adjustments map[uint]*model.BudgetAdjustment
+}
+
+func newFakeBudgetAdjustmentRepo() *fakeBudgetAdjustmentRepo {
+	return &fakeBudgetAdjustmentRepo{nextID: 1, adjustments: make(map[uint]*model.BudgetAdjustment)}
+}
+
+func (f *fakeBudgetAdjustmentRepo) Create(_ context.Context, adjustment *model.BudgetAdjustment) error {
+	adjustment.ID = f.nextID
+	f.nextID++
+	cp := *adjustment
+	f.adjustments[cp.ID] = &cp
+	*adjustment = cp
+	return nil
+}
+
+func (f *fakeBudgetAdjustmentRepo) FindByID(_ context.Context, id uint) (*model.BudgetAdjustment, error) {
+	v, ok := f.adjustments[id]
+	if !ok {
+		return nil, repository.ErrNotFound
+	}
+	cp := *v
+	return &cp, nil
+}
+
+func (f *fakeBudgetAdjustmentRepo) List(_ context.Context, filter repository.BudgetAdjustmentListFilter) ([]model.BudgetAdjustment, int64, error) {
+	var out []model.BudgetAdjustment
+	for _, v := range f.adjustments {
+		if filter.BudgetSheetID != 0 && v.BudgetSheetID != filter.BudgetSheetID {
+			continue
+		}
+		if filter.Status != "" && string(v.Status) != filter.Status {
+			continue
+		}
+		out = append(out, *v)
+	}
+	return out, int64(len(out)), nil
+}
+
+func (f *fakeBudgetAdjustmentRepo) FindPendingByBudgetID(_ context.Context, budgetSheetID uint) (*model.BudgetAdjustment, error) {
+	for _, v := range f.adjustments {
+		if v.BudgetSheetID == budgetSheetID && v.Status == constants.BudgetAdjustmentStatusPending {
+			cp := *v
+			return &cp, nil
+		}
+	}
+	return nil, repository.ErrNotFound
+}
+
+func (f *fakeBudgetAdjustmentRepo) Update(_ context.Context, adjustment *model.BudgetAdjustment) error {
+	cp := *adjustment
+	f.adjustments[adjustment.ID] = &cp
 	return nil
 }
 

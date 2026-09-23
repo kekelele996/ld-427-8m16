@@ -59,7 +59,7 @@ func TestBudgetServiceDeleteNonDraft(t *testing.T) {
 	}
 }
 
-func TestBudgetServiceAdjust(t *testing.T) {
+func TestBudgetServiceUpdateRejectsDirectTotalChange(t *testing.T) {
 	ctx := context.Background()
 	audit := NewAuditService(newFakeAuditRepo(), testLogger())
 	svc := NewBudgetService(newFakeBudgetRepo(), newFakeItemRepo(), audit, nil, testLogger())
@@ -68,11 +68,29 @@ func TestBudgetServiceAdjust(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	adjusted, err := svc.Adjust(ctx, model.Actor{UserID: 1}, sheet.ID, dto.AdjustBudgetRequest{TotalAmount: 1500, Reason: "增加主材预算"})
-	if err != nil {
-		t.Fatalf("adjust: %v", err)
+	_, err = svc.Update(ctx, model.Actor{UserID: 1}, sheet.ID, dto.UpdateBudgetRequest{TotalAmount: 1500})
+	if !errors.Is(err, ErrForbiddenTransition) {
+		t.Fatalf("error = %v, want ErrForbiddenTransition", err)
 	}
-	if adjusted.TotalAmount != 1500 || adjusted.Version != 2 {
-		t.Fatalf("unexpected adjusted: total=%v version=%d", adjusted.TotalAmount, adjusted.Version)
+}
+
+func TestBudgetServiceUpdateBumpsVersion(t *testing.T) {
+	ctx := context.Background()
+	audit := NewAuditService(newFakeAuditRepo(), testLogger())
+	svc := NewBudgetService(newFakeBudgetRepo(), newFakeItemRepo(), audit, nil, testLogger())
+
+	sheet, err := svc.Create(ctx, model.Actor{UserID: 1}, dto.CreateBudgetRequest{ProjectID: "p-1", Name: "预算", TotalAmount: 1000})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	updated, err := svc.Update(ctx, model.Actor{UserID: 1}, sheet.ID, dto.UpdateBudgetRequest{Status: constants.BudgetStatusActive})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if updated.Version != 2 {
+		t.Fatalf("version = %d, want 2", updated.Version)
+	}
+	if updated.TotalAmount != 1000 {
+		t.Fatalf("total = %v, want 1000", updated.TotalAmount)
 	}
 }

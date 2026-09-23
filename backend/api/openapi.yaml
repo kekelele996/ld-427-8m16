@@ -39,6 +39,67 @@ paths:
       security: [{ BearerAuth: [] }]
       responses:
         "200": { description: ok }
+  /budgets/{id}/adjustments:
+    get:
+      summary: 查询指定预算表的调整单列表
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [Pending, Approved, Rejected, Expired] } }
+      responses:
+        "200": { description: ok }
+    post:
+      summary: 项目经理提交预算调整单（拟调金额+原因，不直接改总额）
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [total_amount, reason]
+              properties:
+                total_amount: { type: number, format: double, description: 拟调后的预算总额 }
+                reason: { type: string, description: 调整原因 }
+      responses:
+        "200": { description: ok }
+        "409": { description: 版本过期/已存在待审单 }
+  /budget-adjustments/{id}/approve:
+    post:
+      summary: 财务经理审批通过调整单（金额生效、余额重算、版本加一；版本过期则置 Expired 并拒绝）
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approval_comment: { type: string }
+      responses:
+        "200": { description: ok }
+        "409": { description: 版本过期/状态非法 }
+  /budget-adjustments/{id}/reject:
+    post:
+      summary: 财务经理驳回调整单（金额与版本不变，保留审批意见）
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [approval_comment]
+              properties:
+                approval_comment: { type: string }
+      responses:
+        "200": { description: ok }
   /expenses:
     get:
       summary: 查询支出记录列表

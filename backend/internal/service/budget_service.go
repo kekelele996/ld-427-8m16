@@ -101,7 +101,9 @@ func (s *BudgetService) List(ctx context.Context, filter dto.BudgetFilter) ([]mo
 	return sheets, total, nil
 }
 
-// Update 更新预算表基本信息。
+// Update 更新预算表基本信息（名称、状态）。预算总额禁止在此直接修改，
+// 任何总额变更都必须通过预算调整单审批流程；名称或状态更新视为预算内容变动，
+// 预算版本号加一（待审中的调整单将因此版本过期而无法批准）。
 func (s *BudgetService) Update(ctx context.Context, actor model.Actor, id uint, req dto.UpdateBudgetRequest) (*model.BudgetSheet, error) {
 	sheet, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -110,44 +112,26 @@ func (s *BudgetService) Update(ctx context.Context, actor model.Actor, id uint, 
 		}
 		return nil, fmt.Errorf("get budget sheet %d: %w", id, err)
 	}
-	if req.Name != "" {
-		sheet.Name = req.Name
-	}
 	if req.TotalAmount > 0 {
-		sheet.TotalAmount = req.TotalAmount
+		return nil, fmt.Errorf("update budget sheet %d total amount directly: %w", id, ErrForbiddenTransition)
 	}
-	if req.Status != "" {
+	changed := false
+	if req.Name != "" && req.Name != sheet.Name {
+		sheet.Name = req.Name
+		changed = true
+	}
+	if req.Status != "" && req.Status != sheet.Status {
 		sheet.Status = req.Status
+		changed = true
 	}
-	sheet.AvailableAmount = CalculateAvailable(sheet.TotalAmount, sheet.SpentAmount, sheet.FrozenAmount)
+	if changed {
+		sheet.Version++
+	}
 	if err := s.repo.Update(ctx, sheet); err != nil {
 		return nil, fmt.Errorf("update budget sheet %d: %w", id, err)
 	}
 	s.invalidateSnapshot(ctx, id)
-	s.audit.Record(ctx, actor, "budget_update", "budget", id, fmt.Sprintf("name=%s status=%s", sheet.Name, sheet.Status))
-	return sheet, nil
-}
-
-// Adjust 调整预算总额并递增版本号。
-func (s *BudgetService) Adjust(ctx context.Context, actor model.Actor, id uint, req dto.AdjustBudgetRequest) (*model.BudgetSheet, error) {
-	sheet, err := s.repo.FindByID(ctx, id)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("get budget sheet %d: %w", id, err)
-	}
-	if sheet.Status == constants.BudgetStatusArchived {
-		return nil, fmt.Errorf("adjust budget sheet %d: %w", id, ErrInvalidState)
-	}
-	sheet.TotalAmount = req.TotalAmount
-	sheet.Version++
-	sheet.AvailableAmount = CalculateAvailable(sheet.TotalAmount, sheet.SpentAmount, sheet.FrozenAmount)
-	if err := s.repo.Update(ctx, sheet); err != nil {
-		return nil, fmt.Errorf("adjust budget sheet %d: %w", id, err)
-	}
-	s.invalidateSnapshot(ctx, id)
-	s.audit.Record(ctx, actor, "budget_adjust", "budget", id, fmt.Sprintf("total=%.2f version=%d reason=%s", sheet.TotalAmount, sheet.Version, req.Reason))
+	s.audit.Record(ctx, actor, "budget_update", "budget", id, fmt.Sprintf("name=%s status=%s version=%d", sheet.Name, sheet.Status, sheet.Version))
 	return sheet, nil
 }
 

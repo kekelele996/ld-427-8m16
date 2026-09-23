@@ -116,12 +116,18 @@ func initDB(cfg *config.Config, logger *slog.Logger) (*gorm.DB, error) {
 		&model.User{},
 		&model.BudgetSheet{},
 		&model.BudgetItem{},
+		&model.BudgetAdjustment{},
 		&model.ExpenseRecord{},
 		&model.Supplier{},
 		&model.Reconciliation{},
 		&model.AuditLog{},
 	); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
+	}
+	// 同一份预算只允许存在一张待审调整单（PostgreSQL 部分唯一索引）。
+	if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_budget_adjustments_one_pending
+		ON budget_adjustments(budget_sheet_id) WHERE status = 'Pending'`).Error; err != nil {
+		return nil, fmt.Errorf("create partial unique index on budget_adjustments: %w", err)
 	}
 	logger.Info("database migrated")
 	return db, nil
@@ -150,6 +156,7 @@ func buildEngine(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *slo
 	userRepo := repository.NewUserRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
 	budgetRepo := repository.NewBudgetRepository(db)
+	budgetAdjustmentRepo := repository.NewBudgetAdjustmentRepository(db)
 	itemRepo := repository.NewItemRepository(db)
 	expenseRepo := repository.NewExpenseRepository(db)
 	supplierRepo := repository.NewSupplierRepository(db)
@@ -158,23 +165,25 @@ func buildEngine(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *slo
 	auditService := service.NewAuditService(auditRepo, logger)
 	authService := service.NewAuthService(userRepo, cfg, logger)
 	budgetService := service.NewBudgetService(budgetRepo, itemRepo, auditService, rdb, logger)
+	budgetAdjustmentService := service.NewBudgetAdjustmentService(budgetAdjustmentRepo, budgetRepo, auditService, rdb, logger)
 	itemService := service.NewItemService(itemRepo, budgetRepo, auditService, rdb, logger)
 	expenseService := service.NewExpenseService(expenseRepo, itemRepo, budgetRepo, auditService, rdb, logger)
 	supplierService := service.NewSupplierService(supplierRepo, auditService, logger)
 	reconciliationService := service.NewReconciliationService(reconciliationRepo, auditService, logger)
 
 	engine := router.New(router.Dependencies{
-		Config:                cfg,
-		Redis:                 rdb,
-		Logger:                logger,
-		AuditRepo:             auditRepo,
-		AuthHandler:           handler.NewAuthHandler(authService, logger),
-		AuditHandler:          handler.NewAuditHandler(auditService, logger),
-		BudgetHandler:         handler.NewBudgetHandler(budgetService, logger),
-		ItemHandler:           handler.NewItemHandler(itemService, logger),
-		ExpenseHandler:        handler.NewExpenseHandler(expenseService, logger),
-		SupplierHandler:       handler.NewSupplierHandler(supplierService, logger),
-		ReconciliationHandler: handler.NewReconciliationHandler(reconciliationService, logger),
+		Config:                  cfg,
+		Redis:                   rdb,
+		Logger:                  logger,
+		AuditRepo:               auditRepo,
+		AuthHandler:             handler.NewAuthHandler(authService, logger),
+		AuditHandler:            handler.NewAuditHandler(auditService, logger),
+		BudgetHandler:           handler.NewBudgetHandler(budgetService, budgetAdjustmentService, logger),
+		BudgetAdjustmentHandler: handler.NewBudgetAdjustmentHandler(budgetAdjustmentService, logger),
+		ItemHandler:             handler.NewItemHandler(itemService, logger),
+		ExpenseHandler:          handler.NewExpenseHandler(expenseService, logger),
+		SupplierHandler:         handler.NewSupplierHandler(supplierService, logger),
+		ReconciliationHandler:   handler.NewReconciliationHandler(reconciliationService, logger),
 	})
 
 	engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

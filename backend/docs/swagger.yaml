@@ -82,21 +82,28 @@ definitions:
     - SupplierStatusActive
     - SupplierStatusSuspended
     - SupplierStatusBlacklisted
-  dto.AdjustBudgetRequest:
+  dto.ApproveBudgetAdjustmentRequest:
     properties:
-      reason:
+      approval_comment:
+        maxLength: 512
         type: string
-      total_amount:
-        type: number
-    required:
-    - reason
-    - total_amount
     type: object
   dto.ApproveExpenseRequest:
     properties:
       approval_comment:
         maxLength: 512
         type: string
+    type: object
+  dto.CreateBudgetAdjustmentRequest:
+    properties:
+      reason:
+        maxLength: 512
+        type: string
+      total_amount:
+        type: number
+    required:
+    - reason
+    - total_amount
     type: object
   dto.CreateBudgetRequest:
     properties:
@@ -235,6 +242,14 @@ definitions:
       payment_date:
         type: string
     type: object
+  dto.RejectBudgetAdjustmentRequest:
+    properties:
+      approval_comment:
+        maxLength: 512
+        type: string
+    required:
+    - approval_comment
+    type: object
   dto.RejectExpenseRequest:
     properties:
       approval_comment:
@@ -247,6 +262,9 @@ definitions:
     properties:
       name:
         maxLength: 128
+        type: string
+      reason:
+        maxLength: 512
         type: string
       status:
         $ref: '#/definitions/constants.BudgetStatus'
@@ -405,6 +423,133 @@ paths:
       summary: 登录
       tags:
       - auth
+  /budget-adjustments:
+    get:
+      parameters:
+      - description: 预算表ID
+        in: query
+        name: budget_sheet_id
+        type: integer
+      - description: 审批状态
+        in: query
+        name: status
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 查询预算调整单列表
+      tags:
+      - budget-adjustments
+  /budget-adjustments/{id}:
+    get:
+      parameters:
+      - description: 调整单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 获取预算调整单详情
+      tags:
+      - budget-adjustments
+  /budget-adjustments/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 调整单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 审批请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ApproveBudgetAdjustmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Body'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 审批通过预算调整单
+      tags:
+      - budget-adjustments
+  /budget-adjustments/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 调整单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 驳回请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RejectBudgetAdjustmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Body'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 驳回预算调整单
+      tags:
+      - budget-adjustments
   /budgets:
     get:
       parameters:
@@ -559,7 +704,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/dto.AdjustBudgetRequest'
+          $ref: '#/definitions/dto.CreateBudgetAdjustmentRequest'
       produces:
       - application/json
       responses:
@@ -571,11 +716,90 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Body'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Body'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Body'
       security:
       - BearerAuth: []
-      summary: 调整预算总额
+      summary: 提交预算调整单（旧入口）
       tags:
       - budgets
+  /budgets/{id}/adjustments:
+    get:
+      parameters:
+      - description: 预算表ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 审批状态
+        in: query
+        name: status
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 查询指定预算表的调整单列表
+      tags:
+      - budget-adjustments
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 预算表ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 调整单请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateBudgetAdjustmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Body'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Body'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 提交预算调整单
+      tags:
+      - budget-adjustments
   /budgets/{id}/items:
     get:
       parameters:

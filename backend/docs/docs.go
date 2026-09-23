@@ -131,6 +131,209 @@ const docTemplate = `{
                 }
             }
         },
+        "/budget-adjustments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budget-adjustments"
+                ],
+                "summary": "查询预算调整单列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "预算表ID",
+                        "name": "budget_sheet_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "审批状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    }
+                }
+            }
+        },
+        "/budget-adjustments/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budget-adjustments"
+                ],
+                "summary": "获取预算调整单详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "调整单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    }
+                }
+            }
+        },
+        "/budget-adjustments/{id}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budget-adjustments"
+                ],
+                "summary": "审批通过预算调整单",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "调整单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "审批请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApproveBudgetAdjustmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    }
+                }
+            }
+        },
+        "/budget-adjustments/{id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budget-adjustments"
+                ],
+                "summary": "驳回预算调整单",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "调整单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "驳回请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RejectBudgetAdjustmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    }
+                }
+            }
+        },
         "/budgets": {
             "get": {
                 "security": [
@@ -370,7 +573,7 @@ const docTemplate = `{
                 "tags": [
                     "budgets"
                 ],
-                "summary": "调整预算总额",
+                "summary": "提交预算调整单（旧入口）",
                 "parameters": [
                     {
                         "type": "integer",
@@ -385,7 +588,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.AdjustBudgetRequest"
+                            "$ref": "#/definitions/dto.CreateBudgetAdjustmentRequest"
                         }
                     }
                 ],
@@ -398,6 +601,130 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    }
+                }
+            }
+        },
+        "/budgets/{id}/adjustments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budget-adjustments"
+                ],
+                "summary": "查询指定预算表的调整单列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "预算表ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "审批状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budget-adjustments"
+                ],
+                "summary": "提交预算调整单",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "预算表ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "调整单请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateBudgetAdjustmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Body"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/response.Body"
                         }
@@ -1529,18 +1856,12 @@ const docTemplate = `{
                 "SupplierStatusBlacklisted"
             ]
         },
-        "dto.AdjustBudgetRequest": {
+        "dto.ApproveBudgetAdjustmentRequest": {
             "type": "object",
-            "required": [
-                "reason",
-                "total_amount"
-            ],
             "properties": {
-                "reason": {
-                    "type": "string"
-                },
-                "total_amount": {
-                    "type": "number"
+                "approval_comment": {
+                    "type": "string",
+                    "maxLength": 512
                 }
             }
         },
@@ -1550,6 +1871,22 @@ const docTemplate = `{
                 "approval_comment": {
                     "type": "string",
                     "maxLength": 512
+                }
+            }
+        },
+        "dto.CreateBudgetAdjustmentRequest": {
+            "type": "object",
+            "required": [
+                "reason",
+                "total_amount"
+            ],
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "total_amount": {
+                    "type": "number"
                 }
             }
         },
@@ -1749,6 +2086,18 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.RejectBudgetAdjustmentRequest": {
+            "type": "object",
+            "required": [
+                "approval_comment"
+            ],
+            "properties": {
+                "approval_comment": {
+                    "type": "string",
+                    "maxLength": 512
+                }
+            }
+        },
         "dto.RejectExpenseRequest": {
             "type": "object",
             "required": [
@@ -1767,6 +2116,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "maxLength": 128
+                },
+                "reason": {
+                    "type": "string",
+                    "maxLength": 512
                 },
                 "status": {
                     "$ref": "#/definitions/constants.BudgetStatus"

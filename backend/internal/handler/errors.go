@@ -19,8 +19,10 @@ func handleError(c *gin.Context, err error) {
 		response.Abort(c, http.StatusNotFound, constants.CodeNotFound, "resource not found")
 	case errors.Is(err, service.ErrInvalidLogin):
 		response.Abort(c, http.StatusUnauthorized, constants.CodeUnauthorized, "invalid username or password")
-	case errors.Is(err, service.ErrInvalidState), errors.Is(err, service.ErrInsufficientBalance), errors.Is(err, service.ErrForbiddenTransition):
+	case errors.Is(err, service.ErrInvalidState), errors.Is(err, service.ErrInsufficientBalance), errors.Is(err, service.ErrForbiddenTransition), errors.Is(err, service.ErrVersionStale), errors.Is(err, service.ErrPendingAdjustment):
 		response.Abort(c, http.StatusConflict, constants.CodeConflict, err.Error())
+	case errors.Is(err, service.ErrPermissionDenied):
+		response.Abort(c, http.StatusForbidden, constants.CodeForbidden, "forbidden: insufficient role permission")
 	default:
 		response.Abort(c, http.StatusInternalServerError, constants.CodeInternal, "internal server error")
 	}

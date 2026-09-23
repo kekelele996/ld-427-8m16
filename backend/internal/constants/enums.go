@@ -75,6 +75,16 @@ const (
 	ReconciliationStatusResolved  ReconciliationStatus = "Resolved"
 )
 
+// BudgetAdjustmentStatus 预算调整单审批状态。
+type BudgetAdjustmentStatus string
+
+const (
+	BudgetAdjustmentStatusPending  BudgetAdjustmentStatus = "Pending"
+	BudgetAdjustmentStatusApproved BudgetAdjustmentStatus = "Approved"
+	BudgetAdjustmentStatusRejected BudgetAdjustmentStatus = "Rejected"
+	BudgetAdjustmentStatusExpired  BudgetAdjustmentStatus = "Expired"
+)
+
 // RoleName 角色名称。
 type RoleName string
 
@@ -108,6 +118,9 @@ var (
 	validReconciliationStatuses = map[ReconciliationStatus]struct{}{
 		ReconciliationStatusPending: {}, ReconciliationStatusConfirmed: {}, ReconciliationStatusDisputed: {}, ReconciliationStatusResolved: {},
 	}
+	validBudgetAdjustmentStatuses = map[BudgetAdjustmentStatus]struct{}{
+		BudgetAdjustmentStatusPending: {}, BudgetAdjustmentStatusApproved: {}, BudgetAdjustmentStatusRejected: {}, BudgetAdjustmentStatusExpired: {},
+	}
 )
 
 func ValidBudgetStatus(s BudgetStatus) bool         { _, ok := validBudgetStatuses[s]; return ok }
@@ -118,5 +131,9 @@ func ValidSupplierCategory(s SupplierCategory) bool { _, ok := validSupplierCate
 func ValidBudgetCategory(s BudgetCategory) bool     { _, ok := validBudgetCategories[s]; return ok }
 func ValidReconciliationStatus(s ReconciliationStatus) bool {
 	_, ok := validReconciliationStatuses[s]
+	return ok
+}
+func ValidBudgetAdjustmentStatus(s BudgetAdjustmentStatus) bool {
+	_, ok := validBudgetAdjustmentStatuses[s]
 	return ok
 }

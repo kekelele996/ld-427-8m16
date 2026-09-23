@@ -100,5 +100,15 @@ func ConfigureValidation() {
 				return false
 			}
 		})
+		_ = engine.RegisterValidation("budget_adjustment_status", func(fl validator.FieldLevel) bool {
+			switch v := fl.Field().Interface().(type) {
+			case constants.BudgetAdjustmentStatus:
+				return constants.ValidBudgetAdjustmentStatus(v)
+			case string:
+				return constants.ValidBudgetAdjustmentStatus(constants.BudgetAdjustmentStatus(v))
+			default:
+				return false
+			}
+		})
 	})
 }

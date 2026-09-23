@@ -9,4 +9,7 @@ var (
 	ErrInvalidState        = errors.New("service: invalid state transition")
 	ErrInsufficientBalance = errors.New("service: insufficient available balance")
 	ErrForbiddenTransition = errors.New("service: forbidden transition")
+	ErrVersionStale        = errors.New("service: budget version expired, please submit a new adjustment")
+	ErrPendingAdjustment   = errors.New("service: a pending budget adjustment already exists")
+	ErrPermissionDenied    = errors.New("service: permission denied")
 )
