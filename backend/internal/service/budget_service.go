@@ -24,16 +24,17 @@ func budgetSnapshotKey(id uint) string {
 
 // BudgetService 预算表业务逻辑。
 type BudgetService struct {
-	repo     repository.BudgetRepository
-	itemRepo repository.ItemRepository
-	audit    *AuditService
-	rdb      *redis.Client
-	logger   *slog.Logger
+	repo           repository.BudgetRepository
+	itemRepo       repository.ItemRepository
+	adjustmentRepo repository.AdjustmentRepository
+	audit          *AuditService
+	rdb            *redis.Client
+	logger         *slog.Logger
 }
 
 // NewBudgetService 构造预算表服务。
-func NewBudgetService(repo repository.BudgetRepository, itemRepo repository.ItemRepository, audit *AuditService, rdb *redis.Client, logger *slog.Logger) *BudgetService {
-	return &BudgetService{repo: repo, itemRepo: itemRepo, audit: audit, rdb: rdb, logger: logger}
+func NewBudgetService(repo repository.BudgetRepository, itemRepo repository.ItemRepository, adjustmentRepo repository.AdjustmentRepository, audit *AuditService, rdb *redis.Client, logger *slog.Logger) *BudgetService {
+	return &BudgetService{repo: repo, itemRepo: itemRepo, adjustmentRepo: adjustmentRepo, audit: audit, rdb: rdb, logger: logger}
 }
 
 // Create 创建预算表。
@@ -101,35 +102,47 @@ func (s *BudgetService) List(ctx context.Context, filter dto.BudgetFilter) ([]mo
 	return sheets, total, nil
 }
 
-// Update 更新预算表基本信息。
-func (s *BudgetService) Update(ctx context.Context, actor model.Actor, id uint, req dto.UpdateBudgetRequest) (*model.BudgetSheet, error) {
+// Update 更新预算表基本信息。总额变更不直接生效，会转为待审批的预算调整单。
+func (s *BudgetService) Update(ctx context.Context, actor model.Actor, id uint, req dto.UpdateBudgetRequest) (*model.BudgetSheet, *model.BudgetAdjustment, error) {
 	sheet, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrNotFound
+			return nil, nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("get budget sheet %d: %w", id, err)
+		return nil, nil, fmt.Errorf("get budget sheet %d: %w", id, err)
+	}
+	var adjustment *model.BudgetAdjustment
+	if req.TotalAmount > 0 && req.TotalAmount != sheet.TotalAmount {
+		reason := req.AdjustReason
+		if reason == "" {
+			reason = "预算更新调整"
+		}
+		adjustment, err = submitAdjustment(ctx, s.adjustmentRepo, actor, sheet, req.TotalAmount, reason)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 	if req.Name != "" {
 		sheet.Name = req.Name
-	}
-	if req.TotalAmount > 0 {
-		sheet.TotalAmount = req.TotalAmount
 	}
 	if req.Status != "" {
 		sheet.Status = req.Status
 	}
 	sheet.AvailableAmount = CalculateAvailable(sheet.TotalAmount, sheet.SpentAmount, sheet.FrozenAmount)
 	if err := s.repo.Update(ctx, sheet); err != nil {
-		return nil, fmt.Errorf("update budget sheet %d: %w", id, err)
+		return nil, nil, fmt.Errorf("update budget sheet %d: %w", id, err)
 	}
 	s.invalidateSnapshot(ctx, id)
 	s.audit.Record(ctx, actor, "budget_update", "budget", id, fmt.Sprintf("name=%s status=%s", sheet.Name, sheet.Status))
-	return sheet, nil
+	if adjustment != nil {
+		s.audit.Record(ctx, actor, "budget_adjust_submit", "budget_adjustment", adjustment.ID,
+			fmt.Sprintf("budget_sheet_id=%d proposed=%.2f version=%d reason=%s", sheet.ID, adjustment.ProposedAmount, adjustment.BudgetVersion, adjustment.Reason))
+	}
+	return sheet, adjustment, nil
 }
 
-// Adjust 调整预算总额并递增版本号。
-func (s *BudgetService) Adjust(ctx context.Context, actor model.Actor, id uint, req dto.AdjustBudgetRequest) (*model.BudgetSheet, error) {
+// Adjust 提交预算总额调整单，进入审批流程，审批通过后金额才生效。
+func (s *BudgetService) Adjust(ctx context.Context, actor model.Actor, id uint, req dto.AdjustBudgetRequest) (*model.BudgetAdjustment, error) {
 	sheet, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -137,18 +150,13 @@ func (s *BudgetService) Adjust(ctx context.Context, actor model.Actor, id uint, 
 		}
 		return nil, fmt.Errorf("get budget sheet %d: %w", id, err)
 	}
-	if sheet.Status == constants.BudgetStatusArchived {
-		return nil, fmt.Errorf("adjust budget sheet %d: %w", id, ErrInvalidState)
+	adjustment, err := submitAdjustment(ctx, s.adjustmentRepo, actor, sheet, req.TotalAmount, req.Reason)
+	if err != nil {
+		return nil, err
 	}
-	sheet.TotalAmount = req.TotalAmount
-	sheet.Version++
-	sheet.AvailableAmount = CalculateAvailable(sheet.TotalAmount, sheet.SpentAmount, sheet.FrozenAmount)
-	if err := s.repo.Update(ctx, sheet); err != nil {
-		return nil, fmt.Errorf("adjust budget sheet %d: %w", id, err)
-	}
-	s.invalidateSnapshot(ctx, id)
-	s.audit.Record(ctx, actor, "budget_adjust", "budget", id, fmt.Sprintf("total=%.2f version=%d reason=%s", sheet.TotalAmount, sheet.Version, req.Reason))
-	return sheet, nil
+	s.audit.Record(ctx, actor, "budget_adjust_submit", "budget_adjustment", adjustment.ID,
+		fmt.Sprintf("budget_sheet_id=%d proposed=%.2f version=%d reason=%s", sheet.ID, adjustment.ProposedAmount, adjustment.BudgetVersion, adjustment.Reason))
+	return adjustment, nil
 }
 
 // Delete 删除预算表，仅允许 Draft 状态。

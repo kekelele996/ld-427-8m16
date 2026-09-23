@@ -15,6 +15,8 @@ type Permission string
 const (
 	PermissionView                  Permission = "view"
 	PermissionBudgetWrite           Permission = "budget:write"
+	PermissionBudgetAdjust          Permission = "budget:adjust"
+	PermissionBudgetApprove         Permission = "budget:approve"
 	PermissionExpenseCreate         Permission = "expense:create"
 	PermissionExpenseApprove        Permission = "expense:approve"
 	PermissionExpensePay            Permission = "expense:pay"
@@ -27,13 +29,13 @@ const (
 // RolePermissions 角色权限映射。
 var RolePermissions = map[constants.RoleName]map[Permission]struct{}{
 	constants.RoleAdmin: {
-		PermissionView: {}, PermissionBudgetWrite: {}, PermissionExpenseCreate: {}, PermissionExpenseApprove: {}, PermissionExpensePay: {}, PermissionSupplierWrite: {}, PermissionReconciliationWrite: {}, PermissionReconciliationConfirm: {}, PermissionAuditView: {},
+		PermissionView: {}, PermissionBudgetWrite: {}, PermissionBudgetAdjust: {}, PermissionBudgetApprove: {}, PermissionExpenseCreate: {}, PermissionExpenseApprove: {}, PermissionExpensePay: {}, PermissionSupplierWrite: {}, PermissionReconciliationWrite: {}, PermissionReconciliationConfirm: {}, PermissionAuditView: {},
 	},
 	constants.RoleFinanceManager: {
-		PermissionView: {}, PermissionBudgetWrite: {}, PermissionExpenseCreate: {}, PermissionExpenseApprove: {}, PermissionExpensePay: {}, PermissionSupplierWrite: {}, PermissionReconciliationWrite: {}, PermissionReconciliationConfirm: {},
+		PermissionView: {}, PermissionBudgetWrite: {}, PermissionBudgetApprove: {}, PermissionExpenseCreate: {}, PermissionExpenseApprove: {}, PermissionExpensePay: {}, PermissionSupplierWrite: {}, PermissionReconciliationWrite: {}, PermissionReconciliationConfirm: {},
 	},
 	constants.RoleProjectManager: {
-		PermissionView: {}, PermissionBudgetWrite: {}, PermissionExpenseCreate: {}, PermissionSupplierWrite: {}, PermissionReconciliationWrite: {},
+		PermissionView: {}, PermissionBudgetWrite: {}, PermissionBudgetAdjust: {}, PermissionExpenseCreate: {}, PermissionSupplierWrite: {}, PermissionReconciliationWrite: {},
 	},
 	constants.RoleAccountant: {
 		PermissionView: {}, PermissionExpenseCreate: {},

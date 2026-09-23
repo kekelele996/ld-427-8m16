@@ -116,6 +116,7 @@ func initDB(cfg *config.Config, logger *slog.Logger) (*gorm.DB, error) {
 		&model.User{},
 		&model.BudgetSheet{},
 		&model.BudgetItem{},
+		&model.BudgetAdjustment{},
 		&model.ExpenseRecord{},
 		&model.Supplier{},
 		&model.Reconciliation{},
@@ -151,13 +152,15 @@ func buildEngine(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *slo
 	auditRepo := repository.NewAuditRepository(db)
 	budgetRepo := repository.NewBudgetRepository(db)
 	itemRepo := repository.NewItemRepository(db)
+	adjustmentRepo := repository.NewAdjustmentRepository(db)
 	expenseRepo := repository.NewExpenseRepository(db)
 	supplierRepo := repository.NewSupplierRepository(db)
 	reconciliationRepo := repository.NewReconciliationRepository(db)
 
 	auditService := service.NewAuditService(auditRepo, logger)
 	authService := service.NewAuthService(userRepo, cfg, logger)
-	budgetService := service.NewBudgetService(budgetRepo, itemRepo, auditService, rdb, logger)
+	budgetService := service.NewBudgetService(budgetRepo, itemRepo, adjustmentRepo, auditService, rdb, logger)
+	adjustmentService := service.NewAdjustmentService(adjustmentRepo, budgetRepo, auditService, rdb, logger)
 	itemService := service.NewItemService(itemRepo, budgetRepo, auditService, rdb, logger)
 	expenseService := service.NewExpenseService(expenseRepo, itemRepo, budgetRepo, auditService, rdb, logger)
 	supplierService := service.NewSupplierService(supplierRepo, auditService, logger)
@@ -171,6 +174,7 @@ func buildEngine(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *slo
 		AuthHandler:           handler.NewAuthHandler(authService, logger),
 		AuditHandler:          handler.NewAuditHandler(auditService, logger),
 		BudgetHandler:         handler.NewBudgetHandler(budgetService, logger),
+		AdjustmentHandler:     handler.NewAdjustmentHandler(adjustmentService, logger),
 		ItemHandler:           handler.NewItemHandler(itemService, logger),
 		ExpenseHandler:        handler.NewExpenseHandler(expenseService, logger),
 		SupplierHandler:       handler.NewSupplierHandler(supplierService, logger),

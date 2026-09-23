@@ -21,6 +21,10 @@ func handleError(c *gin.Context, err error) {
 		response.Abort(c, http.StatusUnauthorized, constants.CodeUnauthorized, "invalid username or password")
 	case errors.Is(err, service.ErrInvalidState), errors.Is(err, service.ErrInsufficientBalance), errors.Is(err, service.ErrForbiddenTransition):
 		response.Abort(c, http.StatusConflict, constants.CodeConflict, err.Error())
+	case errors.Is(err, service.ErrStaleVersion):
+		response.Abort(c, http.StatusConflict, constants.CodeConflict, "预算版本已过期，调整单无法批准")
+	case errors.Is(err, service.ErrPendingAdjustmentExists):
+		response.Abort(c, http.StatusConflict, constants.CodeConflict, "该预算已存在待审批的调整单")
 	default:
 		response.Abort(c, http.StatusInternalServerError, constants.CodeInternal, "internal server error")
 	}

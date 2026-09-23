@@ -18,6 +18,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&model.BudgetSheet{},
 		&model.BudgetItem{},
+		&model.BudgetAdjustment{},
 		&model.ExpenseRecord{},
 		&model.Supplier{},
 		&model.Reconciliation{},

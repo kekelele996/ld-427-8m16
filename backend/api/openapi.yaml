@@ -39,6 +39,30 @@ paths:
       security: [{ BearerAuth: [] }]
       responses:
         "200": { description: ok }
+  /budgets/{id}/adjustments:
+    get:
+      summary: 查询预算表的调整单列表
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: ok }
+    post:
+      summary: 提交预算调整单（项目经理）
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: ok }
+  /adjustments/{id}/approve:
+    post:
+      summary: 批准预算调整单（财务经理），金额生效且预算版本加一
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: ok }
+        "409": { description: 预算版本已过期或存在状态冲突 }
+  /adjustments/{id}/reject:
+    post:
+      summary: 驳回预算调整单（财务经理）
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: ok }
   /expenses:
     get:
       summary: 查询支出记录列表

@@ -15,7 +15,7 @@ func TestExpenseServiceFullFlow(t *testing.T) {
 	audit := NewAuditService(newFakeAuditRepo(), testLogger())
 	budgetRepo := newFakeBudgetRepo()
 	itemRepo := newFakeItemRepo()
-	budgetSvc := NewBudgetService(budgetRepo, itemRepo, audit, nil, testLogger())
+	budgetSvc := NewBudgetService(budgetRepo, itemRepo, newFakeAdjustmentRepo(), audit, nil, testLogger())
 	expenseSvc := NewExpenseService(newFakeExpenseRepo(), itemRepo, budgetRepo, audit, nil, testLogger())
 
 	sheet, err := budgetSvc.Create(ctx, model.Actor{UserID: 1, Username: "project"}, dto.CreateBudgetRequest{ProjectID: "p-1", Name: "整屋装修", TotalAmount: 10000})

@@ -19,7 +19,7 @@ func testLogger() *slog.Logger {
 func TestBudgetServiceCreateAndGet(t *testing.T) {
 	ctx := context.Background()
 	audit := NewAuditService(newFakeAuditRepo(), testLogger())
-	svc := NewBudgetService(newFakeBudgetRepo(), newFakeItemRepo(), audit, nil, testLogger())
+	svc := NewBudgetService(newFakeBudgetRepo(), newFakeItemRepo(), newFakeAdjustmentRepo(), audit, nil, testLogger())
 
 	sheet, err := svc.Create(ctx, model.Actor{UserID: 1, Username: "admin"}, dto.CreateBudgetRequest{
 		ProjectID:   "p-1",
@@ -48,7 +48,7 @@ func TestBudgetServiceCreateAndGet(t *testing.T) {
 func TestBudgetServiceDeleteNonDraft(t *testing.T) {
 	ctx := context.Background()
 	audit := NewAuditService(newFakeAuditRepo(), testLogger())
-	svc := NewBudgetService(newFakeBudgetRepo(), newFakeItemRepo(), audit, nil, testLogger())
+	svc := NewBudgetService(newFakeBudgetRepo(), newFakeItemRepo(), newFakeAdjustmentRepo(), audit, nil, testLogger())
 
 	sheet, err := svc.Create(ctx, model.Actor{UserID: 1}, dto.CreateBudgetRequest{ProjectID: "p-1", Name: "预算", TotalAmount: 1000, Status: constants.BudgetStatusActive})
 	if err != nil {
@@ -59,20 +59,78 @@ func TestBudgetServiceDeleteNonDraft(t *testing.T) {
 	}
 }
 
-func TestBudgetServiceAdjust(t *testing.T) {
+func TestBudgetServiceAdjustCreatesPendingAdjustment(t *testing.T) {
 	ctx := context.Background()
 	audit := NewAuditService(newFakeAuditRepo(), testLogger())
-	svc := NewBudgetService(newFakeBudgetRepo(), newFakeItemRepo(), audit, nil, testLogger())
+	svc := NewBudgetService(newFakeBudgetRepo(), newFakeItemRepo(), newFakeAdjustmentRepo(), audit, nil, testLogger())
 
 	sheet, err := svc.Create(ctx, model.Actor{UserID: 1}, dto.CreateBudgetRequest{ProjectID: "p-1", Name: "预算", TotalAmount: 1000})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	adjusted, err := svc.Adjust(ctx, model.Actor{UserID: 1}, sheet.ID, dto.AdjustBudgetRequest{TotalAmount: 1500, Reason: "增加主材预算"})
+	adjustment, err := svc.Adjust(ctx, model.Actor{UserID: 2}, sheet.ID, dto.AdjustBudgetRequest{TotalAmount: 1500, Reason: "增加主材预算"})
 	if err != nil {
 		t.Fatalf("adjust: %v", err)
 	}
-	if adjusted.TotalAmount != 1500 || adjusted.Version != 2 {
-		t.Fatalf("unexpected adjusted: total=%v version=%d", adjusted.TotalAmount, adjusted.Version)
+	if adjustment.Status != constants.AdjustmentStatusPending {
+		t.Fatalf("adjustment status = %q, want Pending", adjustment.Status)
+	}
+	if adjustment.ProposedAmount != 1500 || adjustment.BudgetVersion != 1 {
+		t.Fatalf("unexpected adjustment: proposed=%v version=%d", adjustment.ProposedAmount, adjustment.BudgetVersion)
+	}
+
+	// 审批前总额与版本不变。
+	got, err := svc.Get(ctx, sheet.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.TotalAmount != 1000 || got.Version != 1 {
+		t.Fatalf("sheet changed before approval: total=%v version=%d", got.TotalAmount, got.Version)
+	}
+}
+
+func TestBudgetServiceAdjustSinglePending(t *testing.T) {
+	ctx := context.Background()
+	audit := NewAuditService(newFakeAuditRepo(), testLogger())
+	svc := NewBudgetService(newFakeBudgetRepo(), newFakeItemRepo(), newFakeAdjustmentRepo(), audit, nil, testLogger())
+
+	sheet, err := svc.Create(ctx, model.Actor{UserID: 1}, dto.CreateBudgetRequest{ProjectID: "p-1", Name: "预算", TotalAmount: 1000})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, err := svc.Adjust(ctx, model.Actor{UserID: 2}, sheet.ID, dto.AdjustBudgetRequest{TotalAmount: 1500, Reason: "第一次"}); err != nil {
+		t.Fatalf("first adjust: %v", err)
+	}
+	if _, err := svc.Adjust(ctx, model.Actor{UserID: 2}, sheet.ID, dto.AdjustBudgetRequest{TotalAmount: 1800, Reason: "第二次"}); !errors.Is(err, ErrPendingAdjustmentExists) {
+		t.Fatalf("error = %v, want ErrPendingAdjustmentExists", err)
+	}
+}
+
+func TestBudgetServiceUpdateTotalAmountGoesThroughApproval(t *testing.T) {
+	ctx := context.Background()
+	audit := NewAuditService(newFakeAuditRepo(), testLogger())
+	svc := NewBudgetService(newFakeBudgetRepo(), newFakeItemRepo(), newFakeAdjustmentRepo(), audit, nil, testLogger())
+
+	sheet, err := svc.Create(ctx, model.Actor{UserID: 1}, dto.CreateBudgetRequest{ProjectID: "p-1", Name: "预算", TotalAmount: 1000})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	updated, adjustment, err := svc.Update(ctx, model.Actor{UserID: 2}, sheet.ID, dto.UpdateBudgetRequest{
+		Name:         "预算v2",
+		TotalAmount:  1500,
+		AdjustReason: "更新入口调整",
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if adjustment == nil {
+		t.Fatalf("expected pending adjustment to be created")
+	}
+	if adjustment.Status != constants.AdjustmentStatusPending || adjustment.ProposedAmount != 1500 {
+		t.Fatalf("unexpected adjustment: %+v", adjustment)
+	}
+	// 名称直接生效，总额保持原值等待审批。
+	if updated.Name != "预算v2" || updated.TotalAmount != 1000 {
+		t.Fatalf("unexpected sheet: name=%q total=%v", updated.Name, updated.TotalAmount)
 	}
 }

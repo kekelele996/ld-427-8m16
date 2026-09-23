@@ -68,6 +68,16 @@ docker-compose.yml
 - `SupplierCategory`: Material / Furniture / Appliance / Labor / Design / Other
 - `BudgetCategory`: Design / Material / Labor / Furniture / Appliance / Contingency / Other
 - `ReconciliationStatus`: Pending / Confirmed / Disputed / Resolved
+- `AdjustmentStatus`: Pending / Approved / Rejected
+
+## 预算调整审批流程
+
+预算总额不再允许直接修改，统一走调整单审批：
+
+1. 项目经理通过 `POST /api/v1/budgets/:id/adjustments`（或原 `POST /api/v1/budgets/:id/adjust`、`PUT /api/v1/budgets/:id` 携带 `total_amount`）按当前版本提交拟调金额与原因，生成待审调整单；同一份预算同一时间只保留一张待审单。
+2. 财务经理通过 `POST /api/v1/adjustments/:id/approve` 批准后总额才生效，可用余额同步重算，预算版本加一；`POST /api/v1/adjustments/:id/reject` 驳回则金额不变。
+3. 提交后预算版本若已变化，调整单无法批准，接口返回 409 并提示版本过期。
+4. 处理后的调整单保留审批人、审批意见与拟调金额；会计与业主不参与调整提交与审批。
 
 ## 本地开发
 

@@ -25,6 +25,7 @@ type Dependencies struct {
 	AuthHandler           *handler.AuthHandler
 	AuditHandler          *handler.AuditHandler
 	BudgetHandler         *handler.BudgetHandler
+	AdjustmentHandler     *handler.AdjustmentHandler
 	ItemHandler           *handler.ItemHandler
 	ExpenseHandler        *handler.ExpenseHandler
 	SupplierHandler       *handler.SupplierHandler
@@ -58,11 +59,20 @@ func New(deps Dependencies) *gin.Engine {
 		budgets.GET("/:id", middleware.RBACMiddleware(middleware.PermissionView), deps.BudgetHandler.Get)
 		budgets.PUT("/:id", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.BudgetHandler.Update)
 		budgets.DELETE("/:id", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.BudgetHandler.Delete)
-		budgets.POST("/:id/adjust", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.BudgetHandler.Adjust)
+		budgets.POST("/:id/adjust", middleware.RBACMiddleware(middleware.PermissionBudgetAdjust), deps.BudgetHandler.Adjust)
+		budgets.GET("/:id/adjustments", middleware.RBACMiddleware(middleware.PermissionView), deps.AdjustmentHandler.List)
+		budgets.POST("/:id/adjustments", middleware.RBACMiddleware(middleware.PermissionBudgetAdjust), deps.AdjustmentHandler.Submit)
 		budgets.GET("/:id/items", middleware.RBACMiddleware(middleware.PermissionView), deps.ItemHandler.List)
 		budgets.POST("/:id/items", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.ItemHandler.Create)
 		budgets.PUT("/:id/items/:item_id", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.ItemHandler.Update)
 		budgets.DELETE("/:id/items/:item_id", middleware.RBACMiddleware(middleware.PermissionBudgetWrite), deps.ItemHandler.Delete)
+	}
+
+	adjustments := authed.Group("/adjustments")
+	{
+		adjustments.GET("/:id", middleware.RBACMiddleware(middleware.PermissionView), deps.AdjustmentHandler.Get)
+		adjustments.POST("/:id/approve", middleware.RBACMiddleware(middleware.PermissionBudgetApprove), deps.AdjustmentHandler.Approve)
+		adjustments.POST("/:id/reject", middleware.RBACMiddleware(middleware.PermissionBudgetApprove), deps.AdjustmentHandler.Reject)
 	}
 
 	expenses := authed.Group("/expenses")

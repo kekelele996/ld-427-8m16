@@ -96,6 +96,7 @@ func (h *BudgetHandler) Get(c *gin.Context) {
 
 // Update 更新预算表。
 // @Summary 更新预算表
+// @Description 名称/状态直接更新；总额变更会转为待审批的预算调整单，审批通过后生效
 // @Tags budgets
 // @Accept json
 // @Produce json
@@ -103,6 +104,7 @@ func (h *BudgetHandler) Get(c *gin.Context) {
 // @Param request body dto.UpdateBudgetRequest true "更新请求"
 // @Success 200 {object} response.Body
 // @Failure 400 {object} response.Body
+// @Failure 409 {object} response.Body
 // @Security BearerAuth
 // @Router /budgets/{id} [put]
 func (h *BudgetHandler) Update(c *gin.Context) {
@@ -115,16 +117,17 @@ func (h *BudgetHandler) Update(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	sheet, err := h.service.Update(context.Background(), actor, id, req)
+	sheet, adjustment, err := h.service.Update(context.Background(), actor, id, req)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
-	response.OK(c, sheet)
+	response.OK(c, dto.UpdateBudgetResponse{Sheet: sheet, Adjustment: adjustment})
 }
 
-// Adjust 调整预算总额。
-// @Summary 调整预算总额
+// Adjust 提交预算总额调整单。
+// @Summary 提交预算总额调整单
+// @Description 总额调整进入审批流程，财务经理批准后生效
 // @Tags budgets
 // @Accept json
 // @Produce json
@@ -132,6 +135,7 @@ func (h *BudgetHandler) Update(c *gin.Context) {
 // @Param request body dto.AdjustBudgetRequest true "调整请求"
 // @Success 200 {object} response.Body
 // @Failure 400 {object} response.Body
+// @Failure 409 {object} response.Body
 // @Security BearerAuth
 // @Router /budgets/{id}/adjust [post]
 func (h *BudgetHandler) Adjust(c *gin.Context) {
@@ -144,12 +148,12 @@ func (h *BudgetHandler) Adjust(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	sheet, err := h.service.Adjust(context.Background(), actor, id, req)
+	adjustment, err := h.service.Adjust(context.Background(), actor, id, req)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
-	response.OK(c, sheet)
+	response.OK(c, adjustment)
 }
 
 // Delete 删除预算表。

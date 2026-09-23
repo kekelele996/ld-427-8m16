@@ -85,12 +85,19 @@ definitions:
   dto.AdjustBudgetRequest:
     properties:
       reason:
+        maxLength: 512
         type: string
       total_amount:
         type: number
     required:
     - reason
     - total_amount
+    type: object
+  dto.ApproveAdjustmentRequest:
+    properties:
+      review_comment:
+        maxLength: 512
+        type: string
     type: object
   dto.ApproveExpenseRequest:
     properties:
@@ -235,6 +242,14 @@ definitions:
       payment_date:
         type: string
     type: object
+  dto.RejectAdjustmentRequest:
+    properties:
+      review_comment:
+        maxLength: 512
+        type: string
+    required:
+    - review_comment
+    type: object
   dto.RejectExpenseRequest:
     properties:
       approval_comment:
@@ -243,8 +258,22 @@ definitions:
     required:
     - approval_comment
     type: object
+  dto.SubmitAdjustmentRequest:
+    properties:
+      proposed_amount:
+        type: number
+      reason:
+        maxLength: 512
+        type: string
+    required:
+    - proposed_amount
+    - reason
+    type: object
   dto.UpdateBudgetRequest:
     properties:
+      adjust_reason:
+        maxLength: 512
+        type: string
       name:
         maxLength: 128
         type: string
@@ -339,6 +368,102 @@ info:
   title: Renovation Budget API
   version: 1.0.0
 paths:
+  /adjustments/{id}:
+    get:
+      parameters:
+      - description: 调整单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 获取预算调整单详情
+      tags:
+      - budget-adjustments
+  /adjustments/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 调整单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 审批意见
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ApproveAdjustmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Body'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 批准预算调整单
+      tags:
+      - budget-adjustments
+  /adjustments/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 调整单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 驳回意见
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RejectAdjustmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Body'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 驳回预算调整单
+      tags:
+      - budget-adjustments
   /audit-logs:
     get:
       parameters:
@@ -516,6 +641,7 @@ paths:
     put:
       consumes:
       - application/json
+      description: 名称/状态直接更新；总额变更会转为待审批的预算调整单，审批通过后生效
       parameters:
       - description: 预算表ID
         in: path
@@ -539,6 +665,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Body'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Body'
       security:
       - BearerAuth: []
       summary: 更新预算表
@@ -548,6 +678,7 @@ paths:
     post:
       consumes:
       - application/json
+      description: 总额调整进入审批流程，财务经理批准后生效
       parameters:
       - description: 预算表ID
         in: path
@@ -571,11 +702,74 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Body'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Body'
       security:
       - BearerAuth: []
-      summary: 调整预算总额
+      summary: 提交预算总额调整单
       tags:
       - budgets
+  /budgets/{id}/adjustments:
+    get:
+      parameters:
+      - description: 预算表ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 查询预算表的调整单列表
+      tags:
+      - budget-adjustments
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 预算表ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 调整请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SubmitAdjustmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Body'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Body'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Body'
+      security:
+      - BearerAuth: []
+      summary: 提交预算调整单
+      tags:
+      - budget-adjustments
   /budgets/{id}/items:
     get:
       parameters:

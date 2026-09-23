@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/renovation/renovation-budget-api/internal/constants"
 	"github.com/renovation/renovation-budget-api/internal/model"
 	"github.com/renovation/renovation-budget-api/internal/repository"
 )
@@ -255,6 +256,59 @@ func (f *fakeReconciliationRepo) Update(_ context.Context, record *model.Reconci
 
 func (f *fakeReconciliationRepo) Delete(_ context.Context, id uint) error {
 	delete(f.items, id)
+	return nil
+}
+
+type fakeAdjustmentRepo struct {
+	nextID uint
+	items  map[uint]*model.BudgetAdjustment
+}
+
+func newFakeAdjustmentRepo() *fakeAdjustmentRepo {
+	return &fakeAdjustmentRepo{nextID: 1, items: make(map[uint]*model.BudgetAdjustment)}
+}
+
+func (f *fakeAdjustmentRepo) Create(_ context.Context, adjustment *model.BudgetAdjustment) error {
+	adjustment.ID = f.nextID
+	f.nextID++
+	cp := *adjustment
+	f.items[cp.ID] = &cp
+	*adjustment = cp
+	return nil
+}
+
+func (f *fakeAdjustmentRepo) FindByID(_ context.Context, id uint) (*model.BudgetAdjustment, error) {
+	v, ok := f.items[id]
+	if !ok {
+		return nil, repository.ErrNotFound
+	}
+	cp := *v
+	return &cp, nil
+}
+
+func (f *fakeAdjustmentRepo) FindPendingByBudgetID(_ context.Context, budgetSheetID uint) (*model.BudgetAdjustment, error) {
+	for _, v := range f.items {
+		if v.BudgetSheetID == budgetSheetID && v.Status == constants.AdjustmentStatusPending {
+			cp := *v
+			return &cp, nil
+		}
+	}
+	return nil, repository.ErrNotFound
+}
+
+func (f *fakeAdjustmentRepo) ListByBudgetID(_ context.Context, budgetSheetID uint) ([]model.BudgetAdjustment, error) {
+	var out []model.BudgetAdjustment
+	for _, v := range f.items {
+		if v.BudgetSheetID == budgetSheetID {
+			out = append(out, *v)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeAdjustmentRepo) Update(_ context.Context, adjustment *model.BudgetAdjustment) error {
+	cp := *adjustment
+	f.items[adjustment.ID] = &cp
 	return nil
 }
 

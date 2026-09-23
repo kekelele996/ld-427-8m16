@@ -65,6 +65,15 @@ const (
 	BudgetCategoryOther       BudgetCategory = "Other"
 )
 
+// AdjustmentStatus 预算调整单审批状态。
+type AdjustmentStatus string
+
+const (
+	AdjustmentStatusPending  AdjustmentStatus = "Pending"
+	AdjustmentStatusApproved AdjustmentStatus = "Approved"
+	AdjustmentStatusRejected AdjustmentStatus = "Rejected"
+)
+
 // ReconciliationStatus 对账状态。
 type ReconciliationStatus string
 
@@ -108,6 +117,9 @@ var (
 	validReconciliationStatuses = map[ReconciliationStatus]struct{}{
 		ReconciliationStatusPending: {}, ReconciliationStatusConfirmed: {}, ReconciliationStatusDisputed: {}, ReconciliationStatusResolved: {},
 	}
+	validAdjustmentStatuses = map[AdjustmentStatus]struct{}{
+		AdjustmentStatusPending: {}, AdjustmentStatusApproved: {}, AdjustmentStatusRejected: {},
+	}
 )
 
 func ValidBudgetStatus(s BudgetStatus) bool         { _, ok := validBudgetStatuses[s]; return ok }
@@ -118,5 +130,9 @@ func ValidSupplierCategory(s SupplierCategory) bool { _, ok := validSupplierCate
 func ValidBudgetCategory(s BudgetCategory) bool     { _, ok := validBudgetCategories[s]; return ok }
 func ValidReconciliationStatus(s ReconciliationStatus) bool {
 	_, ok := validReconciliationStatuses[s]
+	return ok
+}
+func ValidAdjustmentStatus(s AdjustmentStatus) bool {
+	_, ok := validAdjustmentStatuses[s]
 	return ok
 }
